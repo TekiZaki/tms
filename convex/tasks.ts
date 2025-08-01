@@ -141,6 +141,8 @@ export const createTask = mutation({
     priority: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
     category: v.string(),
     teamId: v.optional(v.id("teams")),
+    color: v.optional(v.string()),
+    taggedUsers: v.optional(v.array(v.id("users"))),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -184,6 +186,8 @@ export const updateTask = mutation({
     ),
     category: v.optional(v.string()),
     completed: v.optional(v.boolean()),
+    color: v.optional(v.string()),
+    taggedUsers: v.optional(v.array(v.id("users"))),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -214,9 +218,38 @@ export const deleteTask = mutation({
       throw new Error("Task not found or unauthorized");
     }
 
+    // First, get all files associated with the task
+    const files = await ctx.db
+      .query("files")
+      .withIndex("by_task", (q) => q.eq("taskId", args.id))
+      .collect();
+
+    // Delete each file from storage and the files table
+    for (const file of files) {
+      await ctx.storage.delete(file.storageId);
+      await ctx.db.delete(file._id);
+    }
+
+    // Finally, delete the task
     await ctx.db.delete(args.id);
   },
 });
+
+async function canCompleteTask(ctx: any, userId: string, taskId: string) {
+  const task = await ctx.db.get(taskId);
+  if (!task) {
+    return false;
+  }
+  // if it is a team task, only creator or tagged users can complete
+  if (task.teamId) {
+    return (
+      task.userId === userId ||
+      (task.taggedUsers && task.taggedUsers.includes(userId))
+    );
+  }
+  // if it is a personal task, only creator can complete
+  return task.userId === userId;
+}
 
 export const toggleTaskComplete = mutation({
   args: {
@@ -233,8 +266,8 @@ export const toggleTaskComplete = mutation({
       throw new Error("Task not found");
     }
 
-    if (!(await checkTaskAuth(ctx, userId, args.id))) {
-      throw new Error("Unauthorized");
+    if (!(await canCompleteTask(ctx, userId, args.id))) {
+      throw new Error("Unauthorized to complete this task");
     }
 
     await ctx.db.patch(args.id, {

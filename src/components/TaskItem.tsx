@@ -1,12 +1,7 @@
-interface Task {
-  _id: string;
-  title: string;
-  description?: string;
-  dueDate?: number;
-  priority: "low" | "medium" | "high";
-  category: string;
-  completed: boolean;
-  _creationTime: number;
+import { Doc, Id } from "../../convex/_generated/dataModel";
+
+interface Task extends Doc<"tasks"> {
+  _id: Id<"tasks">;
 }
 
 interface TaskItemProps {
@@ -51,6 +46,10 @@ export function TaskItem({
   return (
     <div
       className={`p-6 hover:bg-gray-50 transition-colors ${task.completed ? "opacity-75" : ""}`}
+      style={{
+        borderLeft:
+          task.teamId && task.color ? `4px solid ${task.color}` : "none",
+      }}
     >
       <div className="flex items-start gap-4">
         {/* Checkbox */}
@@ -135,7 +134,10 @@ export function TaskItem({
             {/* Actions */}
             <div className="flex items-center gap-2">
               <button
-                onClick={() => onEdit(task)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(task);
+                }}
                 className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                 title="Edit task"
               >
@@ -155,7 +157,10 @@ export function TaskItem({
               </button>
 
               <button
-                onClick={() => onDelete(task._id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(task._id);
+                }}
                 className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                 title="Delete task"
               >

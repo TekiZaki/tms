@@ -1,19 +1,12 @@
 import { useState, useEffect } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { toast } from "sonner";
+import { Doc, Id } from "../../convex/_generated/dataModel";
 
-interface Task {
-  _id: string;
-  title: string;
-  description?: string;
-  dueDate?: number;
-  priority: "low" | "medium" | "high";
-  category: string;
-  completed: boolean;
+interface Task extends Doc<"tasks"> {
+  _id: Id<"tasks">;
 }
-
-import { Id } from "../../convex/_generated/dataModel";
 
 interface TaskFormProps {
   task?: Task | null;
@@ -29,10 +22,16 @@ export function TaskForm({ task, categories, onClose, teamId }: TaskFormProps) {
     dueDate: "",
     priority: "medium" as "low" | "medium" | "high",
     category: "",
+    color: "#ffffff",
+    taggedUsers: [] as Id<"users">[],
   });
 
   const createTask = useMutation(api.tasks.createTask);
   const updateTask = useMutation(api.tasks.updateTask);
+  const teamMembers = useQuery(
+    api.teams.getTeamMembers,
+    teamId ? { teamId } : "skip"
+  );
 
   useEffect(() => {
     if (task) {
@@ -44,6 +43,8 @@ export function TaskForm({ task, categories, onClose, teamId }: TaskFormProps) {
           : "",
         priority: task.priority,
         category: task.category,
+        color: task.color || "#ffffff",
+        taggedUsers: task.taggedUsers || [],
       });
     }
   }, [task]);
@@ -70,6 +71,8 @@ export function TaskForm({ task, categories, onClose, teamId }: TaskFormProps) {
           : undefined,
         priority: formData.priority,
         category: formData.category.trim(),
+        color: teamId ? formData.color : undefined,
+        taggedUsers: teamId ? formData.taggedUsers : undefined,
       };
 
       if (task) {
@@ -188,6 +191,63 @@ export function TaskForm({ task, categories, onClose, teamId }: TaskFormProps) {
                 ))}
               </datalist>
             </div>
+
+            {teamId && (
+              <>
+                {/* Color */}
+                <div>
+                  <label
+                    htmlFor="color"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    Task Color
+                  </label>
+                  <input
+                    type="color"
+                    id="color"
+                    value={formData.color}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        color: e.target.value,
+                      }))
+                    }
+                    className="w-full h-10 px-1 py-1 border border-gray-300 rounded-lg"
+                  />
+                </div>
+
+                {/* Tagged Users */}
+                <div>
+                  <label
+                    htmlFor="taggedUsers"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    Tag Team Members
+                  </label>
+                  <select
+                    id="taggedUsers"
+                    multiple
+                    value={formData.taggedUsers}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        taggedUsers: Array.from(
+                          e.target.selectedOptions,
+                          (option) => option.value as Id<"users">
+                        ),
+                      }))
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  >
+                    {teamMembers?.map((member) => (
+                      <option key={member._id} value={member._id}>
+                        {member.name || member.email}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
 
             {/* Priority and Due Date */}
             <div className="grid grid-cols-2 gap-4">

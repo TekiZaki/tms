@@ -1,17 +1,11 @@
 import { useEffect, useState, useRef } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Id } from "../../convex/_generated/dataModel";
+import { Doc, Id } from "../../convex/_generated/dataModel";
 import { toast } from "sonner";
 
-interface Task {
+interface Task extends Doc<"tasks"> {
   _id: Id<"tasks">;
-  title: string;
-  description?: string;
-  dueDate?: number;
-  priority: "low" | "medium" | "high";
-  category: string;
-  completed: boolean;
 }
 
 interface TaskDetailModalProps {
@@ -26,7 +20,18 @@ export function TaskDetailModal({ task, onClose }: TaskDetailModalProps) {
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
   const saveFile = useMutation(api.files.saveFile);
   const deleteFile = useMutation(api.files.deleteFile);
+  const toggleTaskComplete = useMutation(api.tasks.toggleTaskComplete);
   const files = useQuery(api.files.getFilesForTask, { taskId: task._id });
+
+  const currentUser = useQuery(api.auth.loggedInUser);
+  const taggedUsers = useQuery(
+    api.users.getUsers,
+    task.taggedUsers ? { userIds: task.taggedUsers } : "skip"
+  );
+  const taskCreator = useQuery(
+    api.users.getUser,
+    task.userId ? { userId: task.userId } : "skip"
+  );
 
   useEffect(() => {
     const handleEsc = (event: KeyboardEvent) => {
@@ -156,6 +161,39 @@ export function TaskDetailModal({ task, onClose }: TaskDetailModalProps) {
 
             <hr />
 
+            {task.teamId && (
+              <div>
+                <h3 className="font-semibold text-gray-800 mb-2">
+                  Team & Sharing
+                </h3>
+                <div className="flex flex-wrap gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500">Creator</p>
+                    <p className="font-medium">
+                      {taskCreator?.name || taskCreator?.email}
+                    </p>
+                  </div>
+                  {taggedUsers && taggedUsers.length > 0 && (
+                    <div>
+                      <p className="text-sm text-gray-500">Tagged</p>
+                      <div className="flex flex-wrap gap-2">
+                        {taggedUsers.map((user) => (
+                          <span
+                            key={user?._id}
+                            className="bg-gray-100 text-gray-800 px-2 py-1 rounded-md text-sm"
+                          >
+                            {user?.name || user?.email}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <hr />
+
             <div>
               <h3 className="font-semibold text-gray-800 mb-4">Attachments</h3>
               <div className="space-y-3">
@@ -233,6 +271,30 @@ export function TaskDetailModal({ task, onClose }: TaskDetailModalProps) {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+        <div className="p-6 bg-gray-50 rounded-b-lg">
+          <div className="flex justify-end gap-4">
+            {currentUser &&
+              (task.userId === currentUser._id ||
+                task.taggedUsers?.includes(currentUser._id)) && (
+                <button
+                  onClick={() => toggleTaskComplete({ id: task._id })}
+                  className={`px-4 py-2 rounded-lg text-white font-semibold ${
+                    task.completed
+                      ? "bg-yellow-500 hover:bg-yellow-600"
+                      : "bg-green-500 hover:bg-green-600"
+                  }`}
+                >
+                  {task.completed ? "Mark as Incomplete" : "Mark as Complete"}
+                </button>
+              )}
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold"
+            >
+              Close
+            </button>
           </div>
         </div>
       </div>

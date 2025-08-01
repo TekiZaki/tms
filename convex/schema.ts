@@ -12,6 +12,8 @@ const applicationTables = {
     completed: v.boolean(),
     userId: v.id("users"),
     teamId: v.optional(v.id("teams")),
+    color: v.optional(v.string()),
+    taggedUsers: v.optional(v.array(v.id("users"))),
   })
     .index("by_user", ["userId"])
     .index("by_user_and_completed", ["userId", "completed"])

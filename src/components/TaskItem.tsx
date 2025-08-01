@@ -14,6 +14,7 @@ interface TaskItemProps {
   onToggleComplete: (taskId: string) => void;
   onEdit: (task: Task) => void;
   onDelete: (taskId: string) => void;
+  onView: () => void;
 }
 
 export function TaskItem({
@@ -21,6 +22,7 @@ export function TaskItem({
   onToggleComplete,
   onEdit,
   onDelete,
+  onView,
 }: TaskItemProps) {
   const priorityColors = {
     low: "bg-green-100 text-green-800",
@@ -72,7 +74,7 @@ export function TaskItem({
         </button>
 
         {/* Task Content */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 cursor-pointer" onClick={onView}>
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
               <h3
@@ -82,7 +84,7 @@ export function TaskItem({
               </h3>
               {task.description && (
                 <p
-                  className={`mt-1 text-sm ${task.completed ? "text-gray-400" : "text-gray-600"}`}
+                  className={`mt-1 text-sm ${task.completed ? "text-gray-400" : "text-gray-600"} truncate`}
                 >
                   {task.description}
                 </p>

@@ -1,12 +1,17 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { Id } from "../../convex/_generated/dataModel";
 import { TaskList } from "./TaskList";
 import { TaskForm } from "./TaskForm";
 import { TaskFilters } from "./TaskFilters";
 import { SearchBar } from "./SearchBar";
 
-export function TaskManager() {
+interface TaskManagerProps {
+  teamId?: Id<"teams">;
+}
+
+export function TaskManager({ teamId }: TaskManagerProps) {
   const [showForm, setShowForm] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [filters, setFilters] = useState({
@@ -22,9 +27,10 @@ export function TaskManager() {
     priority: filters.priority || undefined,
     category: filters.category || undefined,
     search: filters.search || undefined,
+    teamId: teamId,
   };
   const tasks = useQuery(api.tasks.getTasks, queryFilters) || [];
-  const categories = useQuery(api.tasks.getCategories) || [];
+  const categories = useQuery(api.tasks.getCategories, { teamId }) || [];
 
   const handleEditTask = (task: any) => {
     setEditingTask(task);
@@ -167,6 +173,7 @@ export function TaskManager() {
           task={editingTask}
           categories={categories}
           onClose={handleCloseForm}
+          teamId={teamId}
         />
       )}
     </div>

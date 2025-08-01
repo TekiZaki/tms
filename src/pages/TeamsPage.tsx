@@ -5,9 +5,9 @@ import { api } from "../../convex/_generated/api";
 import { Link } from "react-router-dom";
 
 export function TeamsPage() {
-  const myTeams = useQuery(api.tasks.getMyTeams) || [];
-  const createTeam = useMutation(api.tasks.createTeam);
-  const joinTeam = useMutation(api.tasks.joinTeam);
+  const myTeams = useQuery(api.teams.getMyTeams) || [];
+  const createTeam = useMutation(api.teams.createTeam);
+  const joinTeam = useMutation(api.teams.joinTeam);
 
   const [newTeamName, setNewTeamName] = useState("");
   const [inviteToken, setInviteToken] = useState("");
@@ -109,7 +109,7 @@ export function TeamsPage() {
             <input
               type="text"
               value={inviteToken}
-              onChange={(e) => setInviteToken(e.target.value.toUpperCase())}
+              onChange={(e) => setInviteToken(e.target.value)}
               placeholder="Invite Token"
               className="auth-input-field"
               disabled={isJoining}

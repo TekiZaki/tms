@@ -2,8 +2,19 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
+async function checkTeamMembership(ctx: any, userId: string, teamId: string) {
+  const member = await ctx.db
+    .query("teamMembers")
+    .withIndex("by_team_and_user", (q: any) =>
+      q.eq("teamId", teamId).eq("userId", userId)
+    )
+    .first();
+  return !!member;
+}
+
 export const getTasks = query({
   args: {
+    teamId: v.optional(v.id("teams")),
     filter: v.optional(
       v.union(v.literal("all"), v.literal("pending"), v.literal("completed"))
     ),
@@ -22,22 +33,38 @@ export const getTasks = query({
       return [];
     }
 
-    let tasks;
+    let queryBuilder;
 
-    // Apply search if provided
-    if (args.search && args.search.trim()) {
-      tasks = await ctx.db
-        .query("tasks")
-        .withSearchIndex("search_tasks", (q) =>
-          q.search("title", args.search!).eq("userId", userId)
-        )
-        .collect();
+    if (args.teamId) {
+      if (!(await checkTeamMembership(ctx, userId, args.teamId))) {
+        throw new Error("Not a member of this team");
+      }
+      if (args.search && args.search.trim()) {
+        queryBuilder = ctx.db
+          .query("tasks")
+          .withSearchIndex("search_tasks", (q) =>
+            q.search("title", args.search!).eq("teamId", args.teamId!)
+          );
+      } else {
+        queryBuilder = ctx.db
+          .query("tasks")
+          .withIndex("by_team", (q) => q.eq("teamId", args.teamId!));
+      }
     } else {
-      tasks = await ctx.db
-        .query("tasks")
-        .withIndex("by_user", (q) => q.eq("userId", userId))
-        .collect();
+      if (args.search && args.search.trim()) {
+        queryBuilder = ctx.db
+          .query("tasks")
+          .withSearchIndex("search_tasks", (q) =>
+            q.search("title", args.search!).eq("userId", userId)
+          );
+      } else {
+        queryBuilder = ctx.db
+          .query("tasks")
+          .withIndex("by_user", (q) => q.eq("userId", userId));
+      }
     }
+
+    let tasks = await queryBuilder.collect();
 
     // Apply filters
     if (args.filter === "pending") {
@@ -68,7 +95,6 @@ export const getTasks = query({
         (a, b) => priorityOrder[b.priority] - priorityOrder[a.priority]
       );
     } else {
-      // Default sort by creation time (newest first)
       tasks.sort((a, b) => b._creationTime - a._creationTime);
     }
 
@@ -77,17 +103,30 @@ export const getTasks = query({
 });
 
 export const getCategories = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    teamId: v.optional(v.id("teams")),
+  },
+  handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) {
       return [];
     }
 
-    const tasks = await ctx.db
-      .query("tasks")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .collect();
+    let tasks;
+    if (args.teamId) {
+      if (!(await checkTeamMembership(ctx, userId, args.teamId))) {
+        return [];
+      }
+      tasks = await ctx.db
+        .query("tasks")
+        .withIndex("by_team", (q) => q.eq("teamId", args.teamId!))
+        .collect();
+    } else {
+      tasks = await ctx.db
+        .query("tasks")
+        .withIndex("by_user", (q) => q.eq("userId", userId))
+        .collect();
+    }
 
     const categories = [...new Set(tasks.map((task) => task.category))];
     return categories.sort();
@@ -101,6 +140,7 @@ export const createTask = mutation({
     dueDate: v.optional(v.number()),
     priority: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
     category: v.string(),
+    teamId: v.optional(v.id("teams")),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -108,13 +148,30 @@ export const createTask = mutation({
       throw new Error("Not authenticated");
     }
 
+    if (args.teamId) {
+      if (!(await checkTeamMembership(ctx, userId, args.teamId))) {
+        throw new Error("Not a member of this team");
+      }
+    }
+
     return await ctx.db.insert("tasks", {
       ...args,
       completed: false,
-      userId,
+      userId, // creator of the task
     });
   },
 });
+
+async function checkTaskAuth(ctx: any, userId: string, taskId: string) {
+  const task = await ctx.db.get(taskId);
+  if (!task) {
+    return false;
+  }
+  if (task.teamId) {
+    return await checkTeamMembership(ctx, userId, task.teamId);
+  }
+  return task.userId === userId;
+}
 
 export const updateTask = mutation({
   args: {
@@ -134,8 +191,7 @@ export const updateTask = mutation({
       throw new Error("Not authenticated");
     }
 
-    const task = await ctx.db.get(args.id);
-    if (!task || task.userId !== userId) {
+    if (!(await checkTaskAuth(ctx, userId, args.id))) {
       throw new Error("Task not found or unauthorized");
     }
 
@@ -154,8 +210,7 @@ export const deleteTask = mutation({
       throw new Error("Not authenticated");
     }
 
-    const task = await ctx.db.get(args.id);
-    if (!task || task.userId !== userId) {
+    if (!(await checkTaskAuth(ctx, userId, args.id))) {
       throw new Error("Task not found or unauthorized");
     }
 
@@ -174,8 +229,12 @@ export const toggleTaskComplete = mutation({
     }
 
     const task = await ctx.db.get(args.id);
-    if (!task || task.userId !== userId) {
-      throw new Error("Task not found or unauthorized");
+    if (!task) {
+      throw new Error("Task not found");
+    }
+
+    if (!(await checkTaskAuth(ctx, userId, args.id))) {
+      throw new Error("Unauthorized");
     }
 
     await ctx.db.patch(args.id, {

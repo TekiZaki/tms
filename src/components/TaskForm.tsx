@@ -13,13 +13,16 @@ interface Task {
   completed: boolean;
 }
 
+import { Id } from "../../convex/_generated/dataModel";
+
 interface TaskFormProps {
   task?: Task | null;
   categories: string[];
   onClose: () => void;
+  teamId?: Id<"teams">;
 }
 
-export function TaskForm({ task, categories, onClose }: TaskFormProps) {
+export function TaskForm({ task, categories, onClose, teamId }: TaskFormProps) {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -76,7 +79,7 @@ export function TaskForm({ task, categories, onClose }: TaskFormProps) {
         });
         toast.success("Task updated successfully");
       } else {
-        await createTask(taskData);
+        await createTask({ ...taskData, teamId });
         toast.success("Task created successfully");
       }
 

@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { toast } from "sonner";
 import { TaskItem } from "./TaskItem";
+import { TaskDetailModal } from "./TaskDetailModal";
 
 interface Task {
   _id: string;
@@ -20,6 +22,7 @@ interface TaskListProps {
 }
 
 export function TaskList({ tasks, onEditTask }: TaskListProps) {
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const toggleComplete = useMutation(api.tasks.toggleTaskComplete);
   const deleteTask = useMutation(api.tasks.deleteTask);
 
@@ -74,18 +77,27 @@ export function TaskList({ tasks, onEditTask }: TaskListProps) {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-      <div className="divide-y divide-gray-200">
-        {tasks.map((task) => (
-          <TaskItem
-            key={task._id}
-            task={task}
-            onToggleComplete={handleToggleComplete}
-            onEdit={onEditTask}
-            onDelete={handleDeleteTask}
-          />
-        ))}
+    <>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="divide-y divide-gray-200">
+          {tasks.map((task) => (
+            <TaskItem
+              key={task._id}
+              task={task}
+              onToggleComplete={handleToggleComplete}
+              onEdit={onEditTask}
+              onDelete={handleDeleteTask}
+              onView={() => setSelectedTask(task)}
+            />
+          ))}
+        </div>
       </div>
-    </div>
+      {selectedTask && (
+        <TaskDetailModal
+          task={selectedTask}
+          onClose={() => setSelectedTask(null)}
+        />
+      )}
+    </>
   );
 }
